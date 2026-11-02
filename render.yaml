@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: campuscare
+    runtime: image
+    dockerfilePath: Dockerfile
+    plan: free
+    envVars:
+      - key: PORT
+        value: 8090
+      - key: DATA_DIR
+        value: /data
+    disk:
+      name: campuscare-data
+      mountPath: /data
+      sizeGB: 1
