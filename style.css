@@ -14,6 +14,8 @@ body{
 }
 header{height:68px;background:rgba(255,255,252,.94);border-bottom:1px solid #dedfce;
   padding:0 clamp(20px,5vw,72px);backdrop-filter:blur(8px)}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-logo{height:42px;width:auto;max-width:48px;object-fit:contain;display:block}
 .brand b{font-size:21px;letter-spacing:-.45px;color:#343a21}
 .wrap{max-width:1400px;margin:28px auto;padding:0 26px}
 .login{max-width:1060px;min-height:570px;margin:42px auto;grid-template-columns:1.03fr .97fr;
