@@ -6,6 +6,76 @@ const students={AP25110071330:'Hitendra',AP25110071331:'Sasank',AP25110071332:'L
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const deptFor=c=>({'Bus Problem':'Transport','Hostel Problem':'Hostel','Wi-Fi / Computer':'IT Support','Fee Problem':'Finance','Classroom / Academic':'General Administration','Other':'General Administration'}[c]||'General Administration');
 
+// Default initial seed tickets if running on static hosting without a Java backend
+const DEFAULT_TICKETS = [
+  {id:"1",student:"AP25110071330",studentName:"Hitendra",dept:"Transport",category:"Bus Problem",description:"Bus is late and seats need maintenance",status:"In Progress",reply:"Staff: We have scheduled maintenance for this bus",raisedAt:"2026-11-01T00:00:00Z",updates:[]},
+  {id:"2",student:"AP25110071330",studentName:"Hitendra",dept:"IT Support",category:"Wi-Fi / Computer",description:"Wi-Fi connection drops in campus library",status:"Pending",reply:"",raisedAt:"2026-11-01T00:00:00Z",updates:[]},
+  {id:"3",student:"AP25110071331",studentName:"Sasank",dept:"Hostel",category:"Hostel Problem",description:"Hot water supply issue on 3rd floor",status:"Resolved",reply:"Staff: Boiler heating element replaced",raisedAt:"2026-11-01T00:00:00Z",updates:[]}
+];
+
+function getLocalTickets(){
+  try{
+    const saved = localStorage.getItem('campuscare_tickets');
+    if(saved) return JSON.parse(saved);
+  }catch(e){}
+  localStorage.setItem('campuscare_tickets', JSON.stringify(DEFAULT_TICKETS));
+  return DEFAULT_TICKETS;
+}
+
+function saveLocalTickets(items){
+  try{ localStorage.setItem('campuscare_tickets', JSON.stringify(items)); }catch(e){}
+}
+
+function clientFallback(path, data){
+  const cleanPath = path.split('?')[0];
+  if(cleanPath === 'login'){
+    const u = (data.username||'').trim(), p = data.password||'';
+    if(u === 'admin' && p === 'admin123') return {id:'admin',role:'admin',dept:'',name:'Administrator'};
+    if(students[u] && p === 'student123') return {id:u,role:'student',dept:'',name:students[u]};
+    const staffDepts = {transport:['Transport','bus123'],hostel:['Hostel','host123'],itstaff:['IT Support','it123'],finance:['Finance','fee123'],general:['General Administration','gen123']};
+    if(staffDepts[u] && staffDepts[u][1] === p) return {id:u,role:'staff',dept:staffDepts[u][0],name:staffDepts[u][0]+' Staff'};
+    throw new Error('Invalid username or password');
+  }
+  if(cleanPath === 'tickets'){
+    let tickets = getLocalTickets();
+    if(!data){
+      const params = new URLSearchParams(path.split('?')[1]||'');
+      const user = params.get('username')||'', role = params.get('role')||'', dept = params.get('department')||'';
+      return tickets.filter(t => role==='admin' || (role==='student'&&t.student===user) || (role==='staff'&&t.dept.toLowerCase()===dept.toLowerCase()));
+    }
+    const newId = String(tickets.reduce((max,t)=>Math.max(max, parseInt(t.id)||0), 0) + 1);
+    const item = {
+      id: newId,
+      student: data.username,
+      studentName: studentName(data.username),
+      dept: deptFor(data.category),
+      category: data.category,
+      description: data.description,
+      status: 'Pending',
+      reply: '',
+      raisedAt: new Date().toISOString(),
+      updates: []
+    };
+    tickets.push(item);
+    saveLocalTickets(tickets);
+    return {id: newId, status: 'Pending'};
+  }
+  if(cleanPath === 'status'){
+    let tickets = getLocalTickets();
+    tickets.forEach(t => { if(String(t.id) === String(data.ticketId)) t.status = data.status; });
+    saveLocalTickets(tickets);
+    return {ok: true};
+  }
+  if(cleanPath === 'message'){
+    let tickets = getLocalTickets();
+    const prefix = data.role==='student' ? 'Student: ' : data.role==='admin' ? 'Admin: ' : 'Staff: ';
+    tickets.forEach(t => { if(String(t.id) === String(data.ticketId)) t.reply = prefix + data.message; });
+    saveLocalTickets(tickets);
+    return {ok: true};
+  }
+  return {ok: true};
+}
+
 // Uses relative API base so it works on any domain, localhost, or production hosting URL.
 // When opened via file:// protocol directly in a browser, falls back to http://localhost:8090/api/
 const API_BASE = (typeof window !== 'undefined' && window.location.protocol === 'file:')
@@ -16,10 +86,23 @@ async function api(path,data){
   const url=API_BASE+path;
   const opt=data?{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(data)}:{};
   let r;
-  try { r=await fetch(url,opt); }
-  catch(e) { throw new Error('Cannot connect to CampusCare server. Please check your network connection.'); }
+  try {
+    r=await fetch(url,opt);
+  } catch(e) {
+    return clientFallback(path, data);
+  }
+
+  if(r.status === 405 || r.status === 404){
+    return clientFallback(path, data);
+  }
+
   let j;
-  try { j=await r.json(); } catch(e) { throw new Error('CampusCare server returned an invalid response. Please reload.'); }
+  try {
+    j=await r.json();
+  } catch(e) {
+    return clientFallback(path, data);
+  }
+
   if(!r.ok) throw new Error(j.error||'Request failed');
   return j;
 }
