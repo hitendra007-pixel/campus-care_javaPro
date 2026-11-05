@@ -509,7 +509,36 @@ public class CampusComplaintSystem {
         System.out.println("  Storage File    : " + getComplaintFilePath());
         System.out.println("  Local URL       : http://localhost:" + port);
         System.out.println("==================================================");
+        System.out.println("Opening webpage in your browser...");
         System.out.println("Press Ctrl+C to stop the server.");
+
+        // Automatically opens the browser when run from VS Code, Eclipse, or terminal
+        openBrowser(port);
+    }
+
+    /**
+     * Automatically opens the CampusCare webpage in the default browser when run in an IDE like VS Code.
+     */
+    private static void openBrowser(int port) {
+        if (System.getenv("RENDER") != null) {
+            return;
+        }
+        new Thread(() -> {
+            try {
+                Thread.sleep(1200);
+                String url = "http://localhost:" + port;
+                String os = System.getProperty("os.name", "").toLowerCase();
+                if (os.contains("win")) {
+                    new ProcessBuilder("cmd", "/c", "start", "", url).start();
+                } else if (os.contains("mac")) {
+                    new ProcessBuilder("open", url).start();
+                } else if (os.contains("nix") || os.contains("nux")) {
+                    new ProcessBuilder("xdg-open", url).start();
+                } else if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
+                    java.awt.Desktop.getDesktop().browse(new URI(url));
+                }
+            } catch (Exception ignored) {}
+        }).start();
     }
 
     @FunctionalInterface
